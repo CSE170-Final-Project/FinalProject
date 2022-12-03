@@ -114,7 +114,7 @@ void Game::timer(int us){
 void Game::tick(){
 
     if(kbd_states['w']){
-         player.setVelocity(speed * glm::normalize(direction));
+        player.setVelocity(speed * glm::normalize(direction));
         position += player.getVelocity();
     } 
     if(kbd_states['s']){
