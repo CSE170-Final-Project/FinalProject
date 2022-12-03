@@ -14,7 +14,8 @@
 struct GL_Obj{
     GLuint VAO;
     GLuint VBO[7];
-    int vertex_count;
+    GLuint texIDs[32];
+    int vertex_count, texID_count;
     // [Vertex, Normals, TexCoord, instance m1, instance m2, instance m3, instance m4] 
 };
 
@@ -26,7 +27,7 @@ class GameObject{
     GL_Obj gl_obj;
 
     glm::vec3 velocity;
-
+    std::vector<Face*> collision_planes;
 public:
     GameObject();
     GameObject(GL_Obj);
@@ -35,6 +36,7 @@ public:
     void draw(ShaderProgram shader);
     void setVelocity(glm::vec3 vel);
     glm::vec3 getVelocity();
+    glm::vec3 getPosition();
     
 };
 

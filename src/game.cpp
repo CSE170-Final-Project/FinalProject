@@ -5,36 +5,28 @@
 #include <intersection.h>
 
 const char *objNames[] = {
-    "plane"
+    "plane",
+    "zombie"
 };
 const char *objFiles[] = {
-    "first_scene.obj"
+    "./textures/Parktest_triangles.obj",
+    "./textures/zombie.obj",
 };
-int obj_count = 1;
+int obj_count = 2;
 
 int Game::init(){
     init_window(InitWindowWidth, InitWindowHeight);
     init_renderer(objNames, objFiles, obj_count);
 
-    GameObject world(GL_Objs["plane"]);
+    glutSetCursor(GLUT_CURSOR_NONE);
 
-    Face tmp;
-    tmp.A = glm::vec3(1,2,3);
-    tmp.B = glm::vec3(3,2,1);
-    tmp.C = glm::vec3(2,4,6);
-    tmp.D = glm::vec3(4,5,6);
+    world = GameObject(GL_Objs["plane"]);
+    add_render_obj(&world);
 
-    Ray ray;
-    ray.pos = glm::vec3(3,2,10);
-    ray.dir = glm::vec3(2,3,-4) - ray.pos;
-    ray.dir = glm::normalize(ray.dir);
-
-    printf("%f intersect\n", Ray_Face_intersect(ray, tmp));
-
-
-    add_render_obj(world);
+    spawn_zombie(glm::vec3(-10,10,0));
     start_timer(1000);
-    window_begin();
+    window_begin(); // doesn't return
+    // no code runs after this
     return 0;
 }
 
@@ -98,6 +90,11 @@ void Game::mouse_func(int button, int state, int x, int y){
 void Game::keyboard_func( unsigned char key, int x, int y ){
     if(key == 'l' && !kbd_states['l']){
         locked_mode = !locked_mode;
+        if(locked_mode){
+            glutSetCursor(GLUT_CURSOR_NONE);
+        } else{
+            glutSetCursor(GLUT_CURSOR_INHERIT);
+        }
     } 
     if(key == 'r'){
         x_rotation = 4.75;
@@ -119,8 +116,8 @@ void Game::timer(int us){
     auto end = std::chrono::high_resolution_clock::now();
     while(true){
         if(end - begin > std::chrono::microseconds(us)){
-            begin = std::chrono::high_resolution_clock::now() + std::chrono::duration(end - begin - std::chrono::microseconds(us));
-            std::thread t(&tick, this);
+            begin = std::chrono::high_resolution_clock::now() + std::chrono::duration<long long, std::nano>(end - begin - std::chrono::microseconds(us));
+            std::thread t(tick, this);
             t.join();
         }
         std::this_thread::sleep_for(std::chrono::microseconds(1));
@@ -128,22 +125,37 @@ void Game::timer(int us){
     }
 }
 void Game::tick(){
-
     if(kbd_states['w']){
-        player.setVelocity(speed * glm::normalize(direction));
-        position += player.getVelocity();
+         player.setVelocity(speed * glm::normalize(direction));
+        // position += player.getVelocity();
     } 
     if(kbd_states['s']){
-        player.setVelocity(speed * glm::normalize(direction));
-        position -= player.getVelocity();
+        player.setVelocity(-speed * glm::normalize(direction));
+        // position -= player.getVelocity();
     } 
     if(kbd_states['a']){
-        player.setVelocity(speed * glm::normalize(glm::cross(direction, glm::vec3(0,1,0))));
-        position -= player.getVelocity();
+        player.setVelocity(-speed * glm::normalize(glm::cross(direction, glm::vec3(0,1,0))));
+        // position -= player.getVelocity();
     } 
     if(kbd_states['d']){
         player.setVelocity(speed * glm::normalize(glm::cross(direction, glm::vec3(0,1,0))));
-        position += player.getVelocity();
+        // position += player.getVelocity();
+    } 
+    if(kbd_states['q']){
+        player.setVelocity(glm::vec3(0,0,0));
+        // position += player.getVelocity();
     } 
 
+    player.move(0.01);
+    position = player.getPosition();
+
+}
+    
+void Game::spawn_zombie(glm::vec3 pos, glm::vec3 front, glm::vec3 up){
+    
+    int loc = zombies.size();
+    zombies.push_back(Zombie(GL_Objs["zombie"]));
+    Zombie &z = zombies[loc];
+    z.teleport(pos, front, up);
+    add_render_obj(&z);
 }
