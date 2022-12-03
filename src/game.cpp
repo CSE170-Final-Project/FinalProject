@@ -2,6 +2,7 @@
 #include "Settings.h"
 #include <shaderprogram.h>
 #include <shader.h>
+#include <intersection.h>
 
 const char *objNames[] = {
     "plane"
@@ -16,6 +17,21 @@ int Game::init(){
     init_renderer(objNames, objFiles, obj_count);
 
     GameObject world(GL_Objs["plane"]);
+
+    Face tmp;
+    tmp.A = glm::vec3(1,2,3);
+    tmp.B = glm::vec3(3,2,1);
+    tmp.C = glm::vec3(2,4,6);
+    tmp.D = glm::vec3(4,5,6);
+
+    Ray ray;
+    ray.pos = glm::vec3(3,2,10);
+    ray.dir = glm::vec3(2,3,-4) - ray.pos;
+    ray.dir = glm::normalize(ray.dir);
+
+    printf("%f intersect\n", Ray_Face_intersect(ray, tmp));
+
+
     add_render_obj(world);
     start_timer(1000);
     window_begin();
