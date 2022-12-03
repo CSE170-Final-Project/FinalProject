@@ -32,4 +32,3 @@ void Player::damage(float damage){
     }
     health -= damage;
 }
-

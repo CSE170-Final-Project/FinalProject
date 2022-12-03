@@ -3,12 +3,13 @@
 in vec3 vert_Pos;
 in vec3 vert_Normal;
 in vec2 vert_TexCoord;
+flat in uint vert_texID;
 
 out vec4 frag_Color;
 
 uniform mat4 viewMatrix;
 uniform mat4 modelMatrix;
-uniform sampler2D tex0;
+uniform sampler2D tex[32];
 
 uniform bool use_textures;
 
@@ -21,10 +22,10 @@ vec4 shade( void )
 	vec4 ka;
 	vec4 kd;
 
-	// ka = texture(tex0, vert_TexCoord);
-	// kd = texture(tex0, vert_TexCoord);
-	ka = vec4(1, 1, 1, 1);
-	kd = vec4(1, 1, 1, 1);
+	ka = texture(tex[vert_texID], vert_TexCoord);
+	kd = texture(tex[vert_texID], vert_TexCoord);
+	// ka = vec4(1, 1, 1, 1);
+	// kd = vec4(1, 1, 1, 1);
 	
 	vec4 ks = vec4( 1.0, 1.0, 1.0, 1.0 ); // closeLightColor;
 

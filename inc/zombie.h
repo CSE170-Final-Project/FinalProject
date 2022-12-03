@@ -20,6 +20,7 @@ class Zombie : public GameObject{
     float health;
 
 public:
+    Zombie(GL_Obj);
     void drop_limb(enum Zombie_Parts);
     void pathfind();
 
