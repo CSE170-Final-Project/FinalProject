@@ -14,8 +14,8 @@
 struct GL_Obj{
     GLuint VAO;
     GLuint VBO[7];
-    GLuint texIDs[32];
-    int vertex_count, texID_count;
+    GLuint texID;
+    int vertex_count;
     // [Vertex, Normals, TexCoord, instance m1, instance m2, instance m3, instance m4] 
 };
 

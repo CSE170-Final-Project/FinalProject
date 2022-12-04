@@ -44,13 +44,9 @@ void GameObject::draw(ShaderProgram shader){
         glm::vec4(glm::normalize(up), 0), // transforms y axis to up axis
         glm::vec4(glm::normalize(glm::cross(front, up)),0), // transforms z axis to right axis
         glm::vec4(pos, 1));
-    char buff[32];
-    for(int i = 0; i < gl_obj.texID_count; i++){
-        glActiveTexture(GL_TEXTURE0 + i);
-        glBindTexture(GL_TEXTURE_2D, gl_obj.texIDs[i]);
-        snprintf(&buff[0], 32, "tex[%i]", i);
-        shader.SetUniform(&buff[0], i);
-    }    
+    // glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, gl_obj.texID);
+    // shader.SetUniform("texID", 0);
     shader.SetUniform("modelMatrix", glm::value_ptr(model_matrix), 4, GL_FALSE, 1);
     glBindVertexArray(gl_obj.VAO);
     // printf("globj: %d-%d\n", gl_obj.VAO, gl_obj.vertex_count);
