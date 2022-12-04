@@ -2,13 +2,11 @@
 
 layout(location=0) in vec3 in_Position;
 layout(location=1) in vec3 in_Normal;
-layout(location=2) in vec2 in_TexCoord;
-layout(location=3) in uint in_TexID;
+layout(location=2) in vec3 in_TexCoord;
 
 out vec3 vert_Pos;
 out vec3 vert_Normal;
-out vec2 vert_TexCoord;
-flat out uint vert_texID;
+out vec3 vert_TexCoord;
 
 uniform mat4 projectionMatrix;
 uniform mat4 viewMatrix;
@@ -21,5 +19,4 @@ void main(void)
 	vert_Pos    = in_Position;
 	vert_Normal = in_Normal;
 	vert_TexCoord = in_TexCoord;
-	vert_texID = in_TexID;
 }

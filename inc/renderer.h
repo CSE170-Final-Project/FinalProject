@@ -21,7 +21,7 @@ public:
     int init_renderer(const char **objNames, const char **objFiles, int objc);
     GL_Obj get_gl_obj(const char *name);
     int GL_load_obj(const char *objName, const char *objFile);
-    int GL_load_obj(const char *objName, std::vector<std::string> materials, std::vector<glm::vec3> verts, std::vector<glm::vec3> norms, std::vector<glm::vec2> textures, std::vector<GLuint> texIDs);
+    int GL_load_obj(const char *objName, std::vector<std::string> materials, std::vector<glm::vec3> verts, std::vector<glm::vec3> norms, std::vector<glm::vec3> textures);
     virtual void display_func();
     void add_render_obj(GameObject *obj);
     void remove_render_obj(GameObject *obj);

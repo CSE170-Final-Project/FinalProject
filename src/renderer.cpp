@@ -49,7 +49,7 @@ int Renderer::GL_load_obj(const char *obj_name, const char *obj_file){
 
     std::vector<glm::vec3> final_verticies;
     std::vector<glm::vec3> final_normals;
-    std::vector<glm::vec2> final_texCoords;
+    std::vector<glm::vec3> final_texCoords;
     std::vector<GLuint> final_texIDs;
     std::vector<std::string> material_files;
 
@@ -118,7 +118,6 @@ int Renderer::GL_load_obj(const char *obj_name, const char *obj_file){
                 }
                 
                 else return 1;
-                // printf("mode: %d\n", mode);
                 const char *patterns[] = {" %d/%d/%d ", " %d//%d ", " %d/%d ", " %d "};
                 int offset = 0;
                 while(true){
@@ -153,12 +152,9 @@ int Renderer::GL_load_obj(const char *obj_name, const char *obj_file){
                 if(v.size() > 3){
                     int order[] = {0, 1, 2, 0, 2, 3};
                     for(int i = 0; i < 6; i++){
-                        // printf("%d/%d/%d ", v[i], t[i], n[i]);
                         index_vertices.push_back(v[order[i]]);
                         index_normals.push_back(n[order[i]]);
                         index_texCoords.push_back(t[order[i]]);
-                        final_texIDs.push_back(current_texture);
-                        final_texIDs.push_back(current_texture);
                         final_texIDs.push_back(current_texture);
                     }
                 } else{
@@ -167,11 +163,8 @@ int Renderer::GL_load_obj(const char *obj_name, const char *obj_file){
                         index_normals.push_back(n[i]);
                         index_texCoords.push_back(t[i]);
                         final_texIDs.push_back(current_texture);
-                        final_texIDs.push_back(current_texture);
-                        final_texIDs.push_back(current_texture);
                     }
                 }
-                // printf("\n");
             } break;
             case 'u' :{
                 std::string material_img_file(obj_file);
@@ -200,14 +193,13 @@ int Renderer::GL_load_obj(const char *obj_name, const char *obj_file){
     for(int i = 0; i < index_vertices.size(); i++){
         final_verticies.push_back(starting_vertices[index_vertices[i]]);
         final_normals.push_back(starting_normals[index_normals[i]]);
-        final_texCoords.push_back(starting_texCoords[index_texCoords[i]]);
+        final_texCoords.push_back(glm::vec3(starting_texCoords[index_texCoords[i]], final_texIDs[i]));
     }
 
-    return GL_load_obj(obj_name, material_files, final_verticies, final_normals, final_texCoords, final_texIDs);
+    return GL_load_obj(obj_name, material_files, final_verticies, final_normals, final_texCoords);
 }
-int Renderer::GL_load_obj(const char *obj_name, std::vector<std::string> materials, std::vector<glm::vec3> verts, std::vector<glm::vec3> norms, std::vector<glm::vec2> textures, std::vector<GLuint> texIDs){
+int Renderer::GL_load_obj(const char *obj_name, std::vector<std::string> materials, std::vector<glm::vec3> verts, std::vector<glm::vec3> norms, std::vector<glm::vec3> textures){
     GL_Obj obj;
-    obj.texID_count = 0;
     glGenVertexArrays(1, &(obj.VAO));
     glGenBuffers(7, &obj.VBO[0]);
 
@@ -226,29 +218,17 @@ int Renderer::GL_load_obj(const char *obj_name, std::vector<std::string> materia
 	glEnableVertexAttribArray( 1 );
     // texture coords
 	glBindBuffer( GL_ARRAY_BUFFER, obj.VBO[2]);
-	glBufferData( GL_ARRAY_BUFFER, textures.size() * sizeof(glm::vec2), &textures[0], GL_STATIC_DRAW );
-	glVertexAttribPointer( 2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof( float ), (void*)0 );
+	glBufferData( GL_ARRAY_BUFFER, textures.size() * sizeof(glm::vec3), &textures[0], GL_STATIC_DRAW );
+	glVertexAttribPointer( 2, 3, GL_FLOAT, GL_FALSE, 3 * sizeof( float ), (void*)0 );
 	glEnableVertexAttribArray( 2 );
-    // texture ids
-	glBindBuffer( GL_ARRAY_BUFFER, obj.VBO[3]);
-	glBufferData( GL_ARRAY_BUFFER, texIDs.size() * sizeof(GLuint), &texIDs[0], GL_STATIC_DRAW );
-	glVertexAttribPointer( 3, 1, GL_UNSIGNED_INT, GL_FALSE, 1 * sizeof(GLuint), (void*)0 );
-	glEnableVertexAttribArray( 3 );
 
-    long long count[32];
-    memset(&count[0], 0, sizeof(count));
-    for(int i = 0; i < texIDs.size(); i++){
-        count[texIDs[i]]++;
-    }
-    for(int i = 0; i < 32; i++){
-        printf("count %d: %lld\n", i, count[i]);
-    }
+#define N 4096
+    unsigned char *arr = new unsigned char[N * N * materials.size() * 4];
 
-
-    for(int i = 0; i < materials.size(); i++){
-        printf("attempting to load %s\n", materials[i].c_str());
+    for(int m = 0; m < materials.size(); m++){
+        printf("attempting to load %s\n", materials[m].c_str());
         int w, h, ncolch;
-        unsigned char *data = stbi_load(materials[i].c_str(), &w, &h, &ncolch, STBI_rgb_alpha);
+        unsigned char *data = stbi_load(materials[m].c_str(), &w, &h, &ncolch, STBI_rgb_alpha);
         if(data == nullptr) 
         {
             printf("failed to load, using error texture\n");
@@ -259,23 +239,48 @@ int Renderer::GL_load_obj(const char *obj_name, std::vector<std::string> materia
             data[8] = 0x00; data[9] = 0x00; data[10] = 0x00; data[11] = 0xff;
             data[12] = 0xff; data[13] = 0x00; data[14] = 0xff; data[15] = 0xff;
         } 
-        printf("loaded with w: %d, h: %d, colchan: %d\n", w, h, ncolch);
-        glActiveTexture(GL_TEXTURE0 + i);
-        GLuint text;
-        glGenTextures(1, &text);
-        glBindTexture(GL_TEXTURE_2D, text);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+        for(int i = 0; i < N; i++){
+            // float(4096 * 4096)/(4096);
+            // float tu = float(i * w) / float(N);
+            for(int j = 0; j < N; j++){
+                // float tv = float(j * h) / float(N);
+                for(int k = 0; k < 4; k++){
+                    // unsigned char cols[4];
+                    // cols[0] = data[4*(int(tu) * h + int(tv)) + k];
+                    // cols[1] = data[4*(int(tu + 1) * h + int(tv)) + k];
+                    // cols[2] = data[4*(int(tu) * h + int(tv + 1)) + k];
+                    // cols[3] = data[4*(int(tu + 1) * h + int(tv + 1)) + k];
+                    // float t = tu - int(tu);
+                    // unsigned char mu1 = int((1 - t) * cols[0] + t * cols[1]);
+                    // unsigned char mu2 = int((1 - t) * cols[2] + t * cols[3]);
+                    // t = tv - int(tv);
+                    // unsigned char interp = int((1 - t) * mu1 + t * mu2);
+                    int u = i * w / N;
+                    int v = j * h / N;
+                    arr[4 * (N * (N * m + (4095 - i)) + j) + k] = data[4 * (u * h + v) + k];
+                }
+            }
+        }
+        // for(int i = 0; i < N; i++){
+        //     for(int j = 0; j < N; j++){
+        //         for(int k = 0; k < 4; k++){
+        //             arr[4 * (N * (N * m + i) + j) + k] = data[4*((i%w) * h + (j%h)) + k];
+        //         }
+        //     }
+        // }
+        
         free(data);
-
-        obj.texIDs[obj.texID_count++] = text;
     }
-
-
-
+    glActiveTexture(GL_TEXTURE0);
+    GLuint text;
+    glGenTextures(1, &text);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, text);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA, N, N, materials.size(), 0, GL_RGBA, GL_UNSIGNED_BYTE, &arr[0]);
+    obj.texID = text;
     GL_Objs[obj_name] = obj;
     printf("finished loading: %s\n", obj_name);
     return 0;
@@ -292,8 +297,6 @@ void Renderer::display_func(){
 	shader.SetUniform( "viewMatrix", glm::value_ptr( ViewMatrix ), 4, GL_FALSE, 1 );
     glm::mat4 ModelMatrix(1.0f);
 	shader.SetUniform( "modelMatrix", glm::value_ptr( ModelMatrix ), 4, GL_FALSE, 1 );
-
-	shader.SetUniform( "use_textures", 3 != 3);
 
     for(int i = 0; i < render_objs.size(); i++){
         render_objs[i]->draw(shader);
