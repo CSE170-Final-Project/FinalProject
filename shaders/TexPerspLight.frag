@@ -21,12 +21,12 @@ vec4 shade( void )
 
 	ka = texture(texID, vert_TexCoord);
 	kd = texture(texID, vert_TexCoord);
-	// ka = vec4(tex, tex, tex, tex);
-	// kd = vec4(tex, tex, tex, tex);
+	// ka = vec4(1, 1, 1, 1);
+	// kd = vec4(1, 1, 1, 1);
 	
 	vec4 ks = vec4( 1.0, 1.0, 1.0, 1.0 ); // closeLightColor;
 
-	float shininess = 32.0f; // shininess;
+	float shininess = 16.0f; // shininess;
 
 	mat4 transf = viewMatrix * modelMatrix;
 
@@ -56,6 +56,8 @@ vec4 shade( void )
 
 void main( void )
 {
-	frag_Color = shade();
+	vec4 col = shade();
+	if(col.w < 0.5) discard;
+	else frag_Color = col;
 	// frag_Color = vec4(1,1,1,1);
 }

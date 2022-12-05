@@ -7,6 +7,8 @@
 #include <stdio.h>
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb.h>
+#include <thread>
+#include <Settings.h>
 
 int Renderer::init_renderer(const char **obj_names, const char **obj_files, int objc){
     shader.Create("./shaders/TexPerspLight.vert", "./shaders/TexPerspLight.frag");
@@ -27,12 +29,35 @@ int Renderer::init_renderer(const char **obj_names, const char **obj_files, int 
     return 0;
 }
 
-
 GL_Obj Renderer::get_gl_obj(const char *name){
     return GL_Objs[name];
 }
+
+static void file_reading_func(FILE *file, int &num_lines_read, int &num_lines_parsed, char **read_buff, bool &eof) {
+    int count = 0;
+    // for(int i = 0; i < 16; i++) printf("read_buff[%d] = %p-%s\n", i, read_buff[i], read_buff[i]);
+    while(!feof(file)){
+        if(num_lines_read - num_lines_parsed < 15){
+            // memset(read_buff[num_lines_read & 0xf], 0, 256);
+            fscanf(file, "%[^\n]\n", read_buff[num_lines_read & 0xf]);
+            // printf("LINE %d - %d: %s\n", num_lines_read, num_lines_read & 0xf, read_buff[num_lines_read & 0xf]);
+            num_lines_read++;
+        }
+    }
+    eof = true;
+}
+
+static void progress_func(const char *msg, int &count, int &total, bool &progress){
+    printf("\n");
+    while(progress){
+        printf("\e[A\e[J%s: \t%d/%d\n", msg, count, total);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    printf("\e[A\e[JFile %s: Done!\n", msg);
+}
 int Renderer::GL_load_obj(const char *obj_name, const char *obj_file){
     // std::ifstre  am ifs(objFile, std::ios_base::in);    
+    
     printf("started loading: %s\n", obj_name);
     FILE *file = fopen(obj_file, "r");
     if(!file) {
@@ -58,15 +83,22 @@ int Renderer::GL_load_obj(const char *obj_name, const char *obj_file){
     starting_normals.push_back(glm::vec3(0, 0, 0));
     starting_texCoords.push_back(glm::vec2(0, 0));
 
+    bool eof = feof(file);
     int current_texture = 0;
-    int line_number = 0;
-    char buff[256] = {0};  
-    while(!feof(file)){
-        int line_len = 0;
-        memset(&buff[0], 0, 256);
-        fscanf(file, "%[^\n]\n", &buff[0]);
-        // if(line_number++ % 10000 == 0)
-        //     printf("LINE %d: %s\n", line_number, &buff[0]);
+    int num_lines_read = 0, num_lines_parsed = 0;
+    char *read_buff[16] = {0};  
+    for(int i = 0; i < 16; i++) {read_buff[i] = new char[256]; memset(read_buff[i], 'h', 256); read_buff[i][255] = 0;}
+    // for(int i = 0; i < 16; i++) printf("read_buff[%d] = %p-%s\n", i, read_buff[i], read_buff[i]);
+    std::thread file_reading_thread(file_reading_func, file, std::ref(num_lines_read), std::ref(num_lines_parsed), read_buff, std::ref(eof));
+    file_reading_thread.detach();
+    bool progress = true;
+    std::thread progress_thread(progress_func, obj_file, std::ref(num_lines_read), std::ref(num_lines_parsed), std::ref(progress));
+    while(!eof || (eof && num_lines_read > num_lines_parsed)) {
+        if(num_lines_parsed == num_lines_read) continue;
+        char buff[256];
+        memcpy(&buff[0], &read_buff[num_lines_parsed & 0xf][0], 256);
+        // printf("LINE %d/%d parsed: %s\n", num_lines_parsed, num_lines_read, &buff[0]);
+        num_lines_parsed++;
         switch (buff[0]) {
             case 'v' : {
                 switch (buff[1]) {
@@ -188,15 +220,56 @@ int Renderer::GL_load_obj(const char *obj_name, const char *obj_file){
             default : {} // skip
         }
     }
-    
-    
+    progress = false;
     for(int i = 0; i < index_vertices.size(); i++){
         final_verticies.push_back(starting_vertices[index_vertices[i]]);
         final_normals.push_back(starting_normals[index_normals[i]]);
         final_texCoords.push_back(glm::vec3(starting_texCoords[index_texCoords[i]], final_texIDs[i]));
     }
+    if(file_reading_thread.joinable()){
+        file_reading_thread.join();
+    }
+    if(progress_thread.joinable()){
+        progress_thread.join();
+    }
 
+    for(int i = 0; i < 16; i++) delete[] read_buff[i];
     return GL_load_obj(obj_name, material_files, final_verticies, final_normals, final_texCoords);
+}
+static void img_load_func(std::string img_name, int m, int &img_c, unsigned char *arr){
+    // printf("attempting to load %s\n", img_name.c_str());
+    int w, h, ncolch;
+    unsigned char *data = stbi_load(img_name.c_str(), &w, &h, &ncolch, STBI_rgb_alpha);
+    if(data == nullptr) 
+    {
+        // printf("failed to load, using error texture\n");
+        w=2; h=2; ncolch = 4;
+        data = (unsigned char *) malloc(w * h * 4);
+        data[0] = 0xff; data[1] = 0x00; data[2] = 0xff; data[3] = 0xff;
+        data[4] = 0x00; data[5] = 0x00; data[6] = 0x00; data[7] = 0xff; 
+        data[8] = 0x00; data[9] = 0x00; data[10] = 0x00; data[11] = 0xff;
+        data[12] = 0xff; data[13] = 0x00; data[14] = 0xff; data[15] = 0xff;
+    } 
+    // printf("loaded %s-%d with w:%d h:%d c:%d\n", img_name.c_str(), m, w, h, ncolch);
+    for(int i = 0; i < TEXTURE_RESOLUTION_PX; i++){              
+        int u = i * w / TEXTURE_RESOLUTION_PX;
+        for(int j = 0; j < TEXTURE_RESOLUTION_PX; j++){              
+            int v = j * h / TEXTURE_RESOLUTION_PX;
+            for(int k = 0; k < 4; k++){
+                arr[4 * (TEXTURE_RESOLUTION_PX * (TEXTURE_RESOLUTION_PX * m + (TEXTURE_RESOLUTION_PX - 1 - i)) + j) + k] = data[4 * (u * h + v) + k];
+            }
+        }
+    }
+    // for(int i = 0; i < N; i++){
+    //     for(int j = 0; j < N; j++){
+    //         for(int k = 0; k < 4; k++){
+    //             arr[4 * (N * (N * m + i) + j) + k] = data[4*((i%w) * h + (j%h)) + k];
+    //         }
+    //     }
+    // }
+    
+    free(data);
+    img_c++;
 }
 int Renderer::GL_load_obj(const char *obj_name, std::vector<std::string> materials, std::vector<glm::vec3> verts, std::vector<glm::vec3> norms, std::vector<glm::vec3> textures){
     GL_Obj obj;
@@ -222,64 +295,39 @@ int Renderer::GL_load_obj(const char *obj_name, std::vector<std::string> materia
 	glVertexAttribPointer( 2, 3, GL_FLOAT, GL_FALSE, 3 * sizeof( float ), (void*)0 );
 	glEnableVertexAttribArray( 2 );
 
-#define N 4096
-    unsigned char *arr = new unsigned char[N * N * materials.size() * 4];
+    unsigned char *arr = new unsigned char[TEXTURE_RESOLUTION_PX * TEXTURE_RESOLUTION_PX * materials.size() * 4];
 
+    std::vector<std::thread *> threads;
+    bool img_complete = false;
+    int img_finished = 0, img_count = materials.size();
+    std::thread progress_thread(progress_func, "Images", std::ref(img_finished), std::ref(img_count), std::ref(img_complete));
+    // progress_thread.detach();
     for(int m = 0; m < materials.size(); m++){
-        printf("attempting to load %s\n", materials[m].c_str());
-        int w, h, ncolch;
-        unsigned char *data = stbi_load(materials[m].c_str(), &w, &h, &ncolch, STBI_rgb_alpha);
-        if(data == nullptr) 
-        {
-            printf("failed to load, using error texture\n");
-            w=2; h=2; ncolch = 4;
-            data = (unsigned char *) malloc(w * h * 4);
-            data[0] = 0xff; data[1] = 0x00; data[2] = 0xff; data[3] = 0xff;
-            data[4] = 0x00; data[5] = 0x00; data[6] = 0x00; data[7] = 0xff; 
-            data[8] = 0x00; data[9] = 0x00; data[10] = 0x00; data[11] = 0xff;
-            data[12] = 0xff; data[13] = 0x00; data[14] = 0xff; data[15] = 0xff;
-        } 
-        for(int i = 0; i < N; i++){
-            // float(4096 * 4096)/(4096);
-            // float tu = float(i * w) / float(N);
-            for(int j = 0; j < N; j++){
-                // float tv = float(j * h) / float(N);
-                for(int k = 0; k < 4; k++){
-                    // unsigned char cols[4];
-                    // cols[0] = data[4*(int(tu) * h + int(tv)) + k];
-                    // cols[1] = data[4*(int(tu + 1) * h + int(tv)) + k];
-                    // cols[2] = data[4*(int(tu) * h + int(tv + 1)) + k];
-                    // cols[3] = data[4*(int(tu + 1) * h + int(tv + 1)) + k];
-                    // float t = tu - int(tu);
-                    // unsigned char mu1 = int((1 - t) * cols[0] + t * cols[1]);
-                    // unsigned char mu2 = int((1 - t) * cols[2] + t * cols[3]);
-                    // t = tv - int(tv);
-                    // unsigned char interp = int((1 - t) * mu1 + t * mu2);
-                    int u = i * w / N;
-                    int v = j * h / N;
-                    arr[4 * (N * (N * m + (4095 - i)) + j) + k] = data[4 * (u * h + v) + k];
-                }
-            }
-        }
-        // for(int i = 0; i < N; i++){
-        //     for(int j = 0; j < N; j++){
-        //         for(int k = 0; k < 4; k++){
-        //             arr[4 * (N * (N * m + i) + j) + k] = data[4*((i%w) * h + (j%h)) + k];
-        //         }
-        //     }
-        // }
-        
-        free(data);
+        threads.push_back(new std::thread(img_load_func, materials[m], m, std::ref(img_finished), arr));
+        // threads[m]->detach();
     }
+    for(int m = 0; m < materials.size(); m++){
+        if(threads[m]->joinable())
+            threads[m]->join();
+    }
+    img_complete = true;
+    for(int m = 0; m < materials.size(); m++){
+        delete threads[m];
+    }
+    if(progress_thread.joinable())
+        progress_thread.join();
+
     glActiveTexture(GL_TEXTURE0);
     GLuint text;
     glGenTextures(1, &text);
     glBindTexture(GL_TEXTURE_2D_ARRAY, text);
-    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA, N, N, materials.size(), 0, GL_RGBA, GL_UNSIGNED_BYTE, &arr[0]);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA, TEXTURE_RESOLUTION_PX, TEXTURE_RESOLUTION_PX, materials.size(), 0, GL_RGBA, GL_UNSIGNED_BYTE, &arr[0]);
+    glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
+    glGenerateTextureMipmap(text);
     obj.texID = text;
     GL_Objs[obj_name] = obj;
     printf("finished loading: %s\n", obj_name);
