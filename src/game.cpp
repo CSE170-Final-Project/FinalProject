@@ -23,8 +23,9 @@ int Game::init(){
     world = GameObject(GL_Objs["plane"]);
     add_render_obj(&world);
 
+
     spawn_zombie(glm::vec3(-10,10,0));
-    start_timer(1000);
+    start_timer(10000); // 10ms
     window_begin(); // doesn't return
     // no code runs after this
     return 0;

@@ -37,7 +37,8 @@ public:
     void setVelocity(glm::vec3 vel);
     glm::vec3 getVelocity();
     glm::vec3 getPosition();
-    
+    void loadCollisionPlanes(const char *collision_file);
+    void loadHitbox(glm::vec3 origin, glm::vec3 size); // origin should be the lowest coordinates of the obj, size is added to each vertex.
 };
 
 #endif
